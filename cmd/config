@@ -1,0 +1,185 @@
+#!/bin/bash
+set -eu
+
+# This is a configuration file read by the other bash scripts
+
+# Variables
+
+# REPL_OWNER=$(printenv REPL_OWNER) || true
+
+
+# NOTE: COMMIT and BRANCH cannot be extracted from git command because git is
+#       not available in the release pipeline. They always must be passed as
+#       parameters.
+#
+#       These two commands would fail:
+#
+#       BRANCH=$(git branch | sed -n -e 's/^\* \(.*\)/\1/p') || true
+#       COMMIT=$(git rev-parse --short HEAD) || true
+#
+COMMIT=${1:-"xxxcommit"}                            # Example: 08cbb0b4
+BRANCH=${2:-"xxxbranch"}                            # Example: release/2.10.0
+PWD=$(pwd)                                          # Example: /Users/user.name/appName
+SERVICE=$(basename $PWD)                            # Example: appName
+TENANT=$(basename $(dirname $PWD))                  # Example: w
+VERSION=$(cat package.json \
+  | grep version \
+  | head -1 \
+  | awk -F: '{ print $2 }' \
+  | sed 's/[",]//g' \
+  | tr -d '[[:space:]]')                            # Example: 2.10.0
+BUILD_EPOCH=$(date +%s)                             # Example: 1674303385
+BUILD_TIMESTAMP_ISO=$(date +"%Y-%m-%dT%H:%M:%S%z")  # Example: 2023-01-21T21:16:25+0900
+BUILD_TIMESTAMP=$(date)                             # Example: Sat Jan 21 21:16:25 JST 2023
+
+# REPO=$(basename $(git rev-parse --show-toplevel))
+REPO="N/A"
+
+BASE_HREF="./"
+
+# Folders
+
+FOLDER_ROOT="."
+FOLDER_DIST="${FOLDER_ROOT}/dist"
+FOLDER_TEMP="${FOLDER_DIST}/TEMP"
+FOLDER_NODE_MODULES="${FOLDER_ROOT}/node_modules"
+FOLDER_NODE_MODULES_DEV="${FOLDER_ROOT}/others/development/node_modules"
+FOLDER_NODE_MODULES_PRE="${FOLDER_ROOT}/others/pre-PR-check/node_modules"
+
+
+# Add node_modules to the path so that stuff can be found
+PATH=${PATH}:${FOLDER_NODE_MODULES}/.bin
+PATH=${PATH}:${FOLDER_NODE_MODULES_DEV}/.bin
+PATH=${PATH}:${FOLDER_NODE_MODULES_PRE}/.bin
+
+# Elm Tools
+
+ELM=$FOLDER_NODE_MODULES/@lydell/elm/bin/elm
+
+if [[ $OSTYPE == "msys" ]]
+then
+    ELM=$FOLDER_NODE_MODULES/@lydell/elm_win32_x64/elm.exe
+fi
+
+ELM_FORMAT=$FOLDER_NODE_MODULES/elm-format/bin/elm-format
+ELM_TEST=$FOLDER_NODE_MODULES/elm-test/bin/elm-test
+ELM_DOC_PREVIEW=$FOLDER_NODE_MODULES/elm-doc-preview/cli.js
+ELM_GO=$FOLDER_NODE_MODULES_DEV/elm-go/bin/elm-go.js
+ELM_REVIEW=$FOLDER_NODE_MODULES/elm-review/bin/elm-review
+ELM_WATCH=$FOLDER_NODE_MODULES_DEV/elm-watch/index.js
+ELM_REVIEW=$FOLDER_NODE_MODULES_PRE/elm-review/bin/elm-review
+
+# Generic Tools
+
+NODEAPP_TERSER=$FOLDER_NODE_MODULES/terser/bin/terser
+NODEAPP_ESBUILD=$FOLDER_NODE_MODULES/esbuild/bin/esbuild
+NODEAPP_HTML_MINIFIER=$FOLDER_NODE_MODULES/html-minifier/cli.js
+NODEAPP_NPM_CHECK_UPDATES=$FOLDER_NODE_MODULES/npm-check-updates/build/src/bin/cli.js
+NODEAPP_HTTP_SERVER=$FOLDER_NODE_MODULES_DEV/http-server/bin/http-server
+NODEAPP_WEBPACK=$FOLDER_NODE_MODULES/webpack-cli/bin/cli.js
+
+# Colors
+# https://dev.to/ifenna__/adding-colors-to-bash-scripts-48g4
+
+RED="\e[31m"
+GREEN="\e[32m"
+YELLOW="\e[33m"
+BLUE="\e[34m"
+MAGENTA="\e[35m"
+CYAN="\e[36m"
+GRAY="\e[90m"
+BLACK="\e[30m"
+
+LIGHT_RED="\e[91m"
+LIGHT_GREEN="\e[92m"
+LIGHT_YELLOW="\e[93m"
+LIGHT_BLUE="\e[94m"
+LIGHT_MAGENTA="\e[95m"
+LIGHT_CYAN="\e[96m"
+LIGHT_GRAY="\e[37m"
+
+POINT="✨ "
+STOP="\e[0m"
+PRIMARY=$YELLOW
+SECONDARY=$BLUE
+DONE=" ${SECONDARY}done${STOP}\n"
+
+function resetElmCache {
+    printf "${MAGENTA}${POINT} Resetting Elm cache....... "
+    # Remove local Elm cache
+    rm -rf elm-stuff || true
+    # Remove all *.dat among the dependencies
+    rm elm_modules/0.19.1/packages/*/*/*/*.dat || true
+    printf "done${STOP}\n"
+}
+
+function removeAtomGarbage {
+    find "." -name "Elmjutsu*" -type f -delete
+}    
+
+function echoCommand {
+    printf "${BLUE}${POINT}Executing ${YELLOW}${0} ${BLUE}[${1}]${STOP}\n"
+}
+
+function singleCommand {
+    echoCommand "${1}"
+    printf "${YELLOW}${POINT}${2}${STOP}\n"
+    printf "\n"
+    eval "${1}"
+}
+
+function createIndexHtml {
+    START_TIME=$SECONDS 
+
+    SOURCE=$1
+    TARGET=$2
+
+    printf "${PRIMARY}${POINT}Creating ${TARGET}...\n"
+    # Certain character inside REGEX have special meaning so they needs to be 
+    # escaped if used as generic characters, for example $, {, }, etc.
+    # To escape them, they need to be prefixed with four backslashes: \\\\
+    # Double quote need to be prefixed with one backslash
+    COMMAND="cmd/replace.js '${SOURCE}' '${TARGET}' '["
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{TENANT\\\\}\"              , \"${TENANT}\"              ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{SERVICE\\\\}\"             , \"${SERVICE}\"             ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{COMMIT\\\\}\"              , \"${COMMIT}\"              ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{BRANCH\\\\}\"              , \"${BRANCH}\"              ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{VERSION\\\\}\"             , \"${VERSION}\"             ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{PWD\\\\}\"                 , \"${PWD}\"                 ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{REPO\\\\}\"                , \"${REPO}\"                ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{BUILD_EPOCH\\\\}\"         , \"${BUILD_EPOCH}\"         ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{BUILD_TIMESTAMP_ISO\\\\}\" , \"${BUILD_TIMESTAMP_ISO}\" ],"
+    COMMAND="${COMMAND} [ \"\\\\$\\\\{BUILD_TIMESTAMP\\\\}\"     , \"${BUILD_TIMESTAMP}\"     ],"
+    COMMAND="${COMMAND} [ \"<!DOCTYPE html>\", \"<!DOCTYPE html>\n\n<!-- DO NOT EDIT - THIS FILE IS AUTOGENERATED FROM ${SOURCE} -->\n<!-- commit: ${COMMIT}, date: ${BUILD_TIMESTAMP_ISO} -->\n\" ]"
+    COMMAND="${COMMAND} ]'"
+    eval $COMMAND
+    ELAPSED_TIME=$(($SECONDS - $START_TIME))
+    printf "$BLUE done in $ELAPSED_TIME secs$STOP\n"
+}
+
+function devToProdHtml {
+    SOURCE=$1
+    TARGET=$2
+
+    COMMAND="cmd/replace.js '${SOURCE}' '${TARGET}' '["
+    COMMAND="${COMMAND} [ \"(<script class=\\\"dev-only\\\".*</script>)\", \"<!-- \$1 -->\" ],"
+    COMMAND="${COMMAND} [ \"<!-- prod-only (.*) -->\" , \"\$1\" ]"
+    COMMAND="${COMMAND} ]'"
+    eval $COMMAND
+
+    $NODEAPP_HTML_MINIFIER -o $TARGET $TARGET --remove-comments --minify-css --minify-js # --collapse-whitespace
+
+    COMMAND="cmd/replace.js '${TARGET}' '${TARGET}' '["
+    COMMAND="${COMMAND} [ \"^\\\\s*\$\n\", \"\", \"gm\" ]"
+    COMMAND="${COMMAND} ]'"
+    eval $COMMAND
+}
+
+printf "\n"
+printf "${BLUE}               ▄▄▗   ${STOP}\n"
+printf "${BLUE}               ▙▖▐▗▄▄${STOP}\n"
+printf "${BLUE}               ▙▄▐▐▐▐${STOP}\n"
+printf "${BLUE}▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔${STOP}\n"
+TEXT="${TENANT} ♦ ${SERVICE} ♦ ${COMMIT} ♦ ${VERSION}"
+printf "${BLUE}%*s${STOP}\n" $(((${#TEXT}+48)/2)) "${TEXT}"
+printf "\n"

@@ -1,0 +1,21 @@
+#!/bin/bash
+set -eu
+
+# COMMIT=$1
+# BRANCH=$2
+COMMIT=`git rev-parse --short HEAD`
+BRANCH=`git rev-parse --abbrev-ref HEAD`
+source cmd/config $COMMIT $BRANCH
+FOLDER_DOCS="docs/"
+
+rm -rf ${FOLDER_DIST}
+mkdir ${FOLDER_DIST}
+mkdir ${FOLDER_TEMP}
+
+cp    ${FOLDER_DOCS}index.html    ${FOLDER_DIST}
+cp    ${FOLDER_DOCS}favicon.ico   ${FOLDER_DIST}
+cp -r ${FOLDER_DOCS}images        ${FOLDER_DIST} || true
+
+node_modules/.bin/elm make src/Main.elm --debug --output ${FOLDER_TEMP}/elm.js
+cmd/minify.js
+cp ${FOLDER_TEMP}/elm.min.js ${FOLDER_DIST}/elm.js

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="x-ua-compatible" content="ie=edge" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no" />
+    <meta name="google" content="notranslate" />
+    <title>elm-web-components</title>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code&family=Fira+Sans:wght@100;400;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.8.0/cdn/themes/light.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.8.0/cdn/themes/dark.css" />
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@shoelace-style/shoelace@2.8.0/cdn/shoelace-autoloader.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: "Fira Sans", Helvetica, Arial, sans-serif;
+            line-height: var(--sl-line-height-normal);
+            background-color: #eee;
+            color: var(--sl-color-neutral-900);
+        }
+
+        body .sl-theme-dark {
+            color: var(--sl-color-neutral-700);
+        }
+
+        .card-overview {
+            max-width: 400px;
+        }
+
+        .card-overview small {
+            color: var(--sl-color-neutral-500);
+        }
+
+        .wrapped {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            row-gap: 0.5rem;
+            column-gap: 1rem;
+        }
+
+        .card-overview [slot='footer'] {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            row-gap: 1rem;
+            column-gap: 1rem;
+        }
+    </style>
+  </head>
+
+  <body>
+    <noscript>Please enable JavaScript to use this page.</noscript>
+    <div id="elm"></div>
+    <script src="elm.js"></script>
+    <script>var app = Elm.Main.init({ node: document.getElementById('elm') })</script>
+  </body>
+</html>

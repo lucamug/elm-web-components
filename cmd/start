@@ -1,0 +1,10 @@
+#!/bin/bash
+set -eu
+
+COMMIT=`git rev-parse --short HEAD`
+BRANCH=`git rev-parse --abbrev-ref HEAD`
+
+source cmd/config $COMMIT $BRANCH
+
+elm-watch hot 'Main' &
+http-server docs -c-1 --cors --port=8002 --silent
