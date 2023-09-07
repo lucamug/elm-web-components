@@ -146,7 +146,18 @@ onEnter msg =
 
 view : Model -> Html Msg
 view model =
-    layout [] <| Ui.text "Hi"
+    div []
+        [ Html.node "style" [] [ Html.text """
+            .myExplain {outline: 6px solid rgba(174,121,15,0.5)}
+            .myExplain > .s {outline: 4px dashed rgba(0,151,167,0.5)}""" ]
+        , layout [] <|
+            column [ padding 10, spacing 10 ]
+                [ Ui.row [ spacing 10, htmlAttribute <| Html.Attributes.class "myExplain" ]
+                    [ Ui.text "A", Ui.text "B" ]
+                , Ui.row [ spacing 10, explain <| Debug.todo ]
+                    [ Ui.text "A", Ui.text "B" ]
+                ]
+        ]
 
 
 view2 : Model -> Html Msg
